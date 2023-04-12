@@ -1,5 +1,5 @@
 import { CommandData } from 'memcached';
-import { memcached, memcachedGet, memcachedSet, memcachedRemove } from '../../../src/database/memcached';
+import { memcached, memcachedGet, memcachedRemove, memcachedSet } from '../../../src/database/memcached';
 
 describe('Unit tests of <database.memcached>', () => {
     describe('test memcachedGet', () => {

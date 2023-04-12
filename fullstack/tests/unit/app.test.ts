@@ -24,14 +24,14 @@ describe('Unit tests of <api>', () => {
         });
         test('when unshorten success', async () => {
             spyUnshorten.mockResolvedValue('something');
-            let res = await request(server).get('/somekey1');
+            const res = await request(server).get('/somekey1');
             expect(res.statusCode).toBe(200);
             expect(res.body).toHaveProperty('url', 'something');
             expect(spyUnshorten).toBeCalledTimes(1);
         });
         test('when unshorten failed', async () => {
             spyUnshorten.mockRejectedValue({'status': 400, 'msg': 'wrong'});
-            let res = await request(server).get('/somekey1');
+            const res = await request(server).get('/somekey1');
             expect(res.statusCode).toBe(400);
             expect(res.body).toHaveProperty('status', 400);
             expect(res.body).toHaveProperty('msg', 'wrong');
@@ -52,14 +52,14 @@ describe('Unit tests of <api>', () => {
         });
         test('when shorten success', async () => {
             spyShorten.mockResolvedValue('somekey1');
-            let res = await request(server).post('/shorten').send({'url': 'something'});
+            const res = await request(server).post('/shorten').send({'url': 'something'});
             expect(res.statusCode).toBe(200);
             expect(res.body).toHaveProperty('code', 'somekey1');
             expect(spyShorten).toBeCalledTimes(1);
         });
         test('when shorten failed', async () => {
             spyShorten.mockRejectedValue({'status': 400, 'msg': 'wrong'});
-            let res = await request(server).post('/shorten').send({'url': 'something'});
+            const res = await request(server).post('/shorten').send({'url': 'something'});
             expect(res.statusCode).toBe(400);
             expect(res.body).toHaveProperty('status', 400);
             expect(res.body).toHaveProperty('msg', 'wrong');

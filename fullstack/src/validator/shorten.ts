@@ -1,13 +1,15 @@
+import { ErrorMsg } from "../model/ErrorMsg";
+
 const MAX_URL_LENGTH = 2048;
 
 function validate(url: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         if (!url) {
-            reject({'status': 400, 'msg': 'Please input a url.'});
+            reject(ErrorMsg.of(400, 'Please input a url.'));
         } else if (!isValidLength(url)) {
-            reject({'status': 400, 'msg': `Url exceeds max size ${MAX_URL_LENGTH}.`});
+            reject(ErrorMsg.of(400, `Url exceeds max size ${MAX_URL_LENGTH}.`));
         } else if (!isValidUrl(url)) {
-            reject({'status': 400, 'msg': `Please input a valid url.`});
+            reject(ErrorMsg.of(400, `Please input a valid url.`));
         } else {
             resolve(url);
         }

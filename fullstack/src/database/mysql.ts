@@ -1,6 +1,7 @@
 import config from 'config';
 import { createPool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import logger from '../log/log';
+import { ErrorMsg } from '../model/ErrorMsg';
 
 const writePool = createPool({
     host: config.get<string>('mysqlWrite.host'),
@@ -22,11 +23,15 @@ const readPool = createPool({
 
 logger.info('Mysql inited.');
 
-async function mysqlGet(code: string): Promise<string | undefined> {
+function mysqlGet(code: string): Promise<string | undefined> {
     logger.debug(`try load from mysql ${code}.`);
     return new Promise<string | undefined>((resolve, reject) => {
-        mysqlGetMultiInfo([code])
-        .then((rows: any[] | undefined) => {
+        readPool.query<RowDataPacket[]>(
+            `SELECT origin_url FROM short_url WHERE short_url = ?`,
+            code
+        )
+        .then((results: [RowDataPacket[], any]) => {
+            const [rows, _] = results;
             if (!rows || rows.length == 0) {
                 resolve(undefined);
             } else {
@@ -34,35 +39,13 @@ async function mysqlGet(code: string): Promise<string | undefined> {
             }
         })
         .catch((err) => {
-            reject(err);
+            logger.error(`Load origin_url from mysql failed with ${code}.`, err);
+            reject(ErrorMsg.of(500, 'Internal server error.'));
         });
     });
 }
 
-async function mysqlUpdate(code: string, url: string, timestamp: number, lastUpdateTime: number): Promise<string | undefined> {
-    logger.debug(`try update ${code}.`);
-    return new Promise<string | undefined>((resolve, reject) => {
-        writePool.query<ResultSetHeader>(
-            'UPDATE short_url SET origin_url = ?, update_time = ? WHERE short_url = ? and update_time = ?',
-            [url, timestamp, code, lastUpdateTime]
-        )
-        .then((results: [ResultSetHeader, any]) => {
-            const [result, _] = results;
-            if (result.affectedRows === 1) {
-                logger.debug(`update db: ${code}`);
-                resolve(code);
-            } else {
-                resolve(undefined);
-            }
-        })
-        .catch((err) => {
-            logger.error(`Update data to mysql failed with ${code}.`, err);
-            reject({'status': 500, 'msg': 'Internal server error.'});
-        });
-    });
-}
-
-async function mysqlInsert(code: string, url: string, timestamp: number): Promise<string | undefined> {
+function mysqlInsert(code: string, url: string, timestamp: number): Promise<string | undefined> {
     logger.debug(`try insert into db: ${code}`);
     return new Promise<string | undefined>((resolve, reject) => {
         writePool.query<ResultSetHeader>(
@@ -83,13 +66,13 @@ async function mysqlInsert(code: string, url: string, timestamp: number): Promis
                 resolve(undefined);
             } else {
                 logger.error(`Insert data into mysql failed with ${code}.`, err);
-                reject({'status': 500, 'msg': 'Internal server error.'});
+                reject(ErrorMsg.of(500, 'Internal server error.'));
             }
         });
     });
 }
 
-async function mysqlGetMultiInfo(codes: string[]): Promise<any[]> {
+function mysqlGetMultiInfo(codes: string[]): Promise<any[]> {
     const placeholders = Array(codes.length).fill('?').join(', ');
     return new Promise<any[]>((resolve, reject) => {
         readPool.query<RowDataPacket[]>(
@@ -103,9 +86,9 @@ async function mysqlGetMultiInfo(codes: string[]): Promise<any[]> {
         })
         .catch((err) => {
             logger.error(`Load multi data from mysql failed with ${codes}.`, err);
-            reject({'status': 500, 'msg': 'Internal server error.'});
+            reject(ErrorMsg.of(500, 'Internal server error.'));
         });
     });
 }
 
-export { mysqlGet, mysqlInsert, mysqlUpdate, mysqlGetMultiInfo, writePool, readPool };
+export { mysqlGet, mysqlInsert, mysqlGetMultiInfo, writePool, readPool };

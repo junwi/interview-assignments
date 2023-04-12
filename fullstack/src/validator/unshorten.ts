@@ -1,11 +1,12 @@
 import { SHORT_URL_LENGTH } from '../core/core';
+import { ErrorMsg } from '../model/ErrorMsg';
 
 function validate(code: string): Promise<string> {
     return new Promise((resolve, reject) => {
         if (isValidShortUrl(code)) {
             resolve(code);
         } else {
-            reject({'status': 400, 'msg': 'Please input a valid short url.'});
+            reject(ErrorMsg.of(400, 'Please input a valid short url.'));
         }
     });
 }
@@ -18,7 +19,7 @@ function isValidShortUrl(code: string) {
         return false;
     }
     for (let i = 0; i < code.length; i++) {
-        let c: string = code.charAt(i);
+        const c: string = code.charAt(i);
         if (c != '_' && c != '-' && !(c >= '0' && c <= 'z')) {
             return false;
         }

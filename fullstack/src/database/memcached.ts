@@ -1,6 +1,8 @@
 import config from 'config';
 import Memcached from 'memcached';
 import logger from '../log/log';
+import { ErrorMsg } from '../model/ErrorMsg';
+
 const memcached = new Memcached(
     config.get<string>('memcached.hosts'),
     {
@@ -10,13 +12,13 @@ const memcached = new Memcached(
 
 logger.info('Memcached inited.');
 
-async function memcachedGet(code: string): Promise<string | undefined> {
+function memcachedGet(code: string): Promise<string | undefined> {
     logger.debug(`try load from memcached ${code}.`);
     return new Promise<string | undefined>((resolve, reject) => {
         memcached.get(code, (err, data) => {
             if (err) {
                 logger.error(`Load data from memcached failed with ${code}.`, err);
-                reject({'status': 500, 'msg': 'Internal server error.'});
+                reject(ErrorMsg.of(500, 'Internal server error.'));
             } else {
                 if (data) {
                     logger.debug(`get from memcached: ${code}`);
@@ -27,9 +29,9 @@ async function memcachedGet(code: string): Promise<string | undefined> {
     });
 }
 
-async function memcachedSet(key: string, value: string): Promise<boolean> {
+function memcachedSet(key: string, value: string): Promise<boolean> {
     logger.debug(`try set to memcached ${key}.`);
-    return new Promise((resolve, _reject) => {
+    return new Promise((resolve) => {
         memcached.set(key, value, config.get<number>('memcached.lifetime'), (err, result) => {
             if (err) {
                 logger.error(`Set data to memcached failed with ${key}.`, err);
@@ -46,8 +48,8 @@ async function memcachedSet(key: string, value: string): Promise<boolean> {
     });
 }
 
-async function memcachedRemove(key: string): Promise<boolean> {
-    return new Promise((resolve, _reject) => {
+function memcachedRemove(key: string): Promise<boolean> {
+    return new Promise((resolve) => {
         memcached.del(key, (err, result) => {
             if (err) {
                 logger.error(`Delete data from memcached failed with ${key}.`, err);

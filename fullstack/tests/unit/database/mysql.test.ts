@@ -7,39 +7,6 @@ describe('Unit tests of <database.mysql>', () => {
     const failedHeader = {
         affectedRows: 0,
     };
-    describe('test mysqlUpdate', () => {
-        let spyWrite: jest.SpyInstance;
-        beforeAll(() => {
-            spyWrite = jest.spyOn(mysql.writePool, 'query');
-        });
-        afterAll(() => {
-            spyWrite.mockRestore();
-        });
-        beforeEach(() => {
-            spyWrite.mockClear();
-        });
-        test('when update successful.', () => {
-            spyWrite.mockResolvedValue([successHeader, []]);
-            expect(mysql.mysqlUpdate('someKey', 'something', 234, 123)).resolves.toBe('someKey');
-            expect(spyWrite).toBeCalledTimes(1);
-            expect(spyWrite).lastCalledWith('UPDATE short_url SET origin_url = ?, update_time = ? WHERE short_url = ? and update_time = ?',
-                ['something', 234, 'someKey', 123]);
-        });
-        test('when nothing affected.', () => {
-            spyWrite.mockResolvedValue([failedHeader, []]);
-            expect(mysql.mysqlUpdate('someKey', 'something', 234, 123)).resolves.toBeUndefined();
-            expect(spyWrite).toBeCalledTimes(1);
-            expect(spyWrite).lastCalledWith('UPDATE short_url SET origin_url = ?, update_time = ? WHERE short_url = ? and update_time = ?',
-                ['something', 234, 'someKey', 123]);
-        });
-        test('when mysql gets error.', () => {
-            spyWrite.mockRejectedValue(new Error());
-            expect(mysql.mysqlUpdate('someKey', 'something', 234, 123)).rejects.toStrictEqual({ 'status': 500, 'msg': 'Internal server error.' });
-            expect(spyWrite).toBeCalledTimes(1);
-            expect(spyWrite).lastCalledWith('UPDATE short_url SET origin_url = ?, update_time = ? WHERE short_url = ? and update_time = ?',
-                ['something', 234, 'someKey', 123]);
-        });
-    });
 
     describe('test mysqlInsert', () => {
         let spyWrite: jest.SpyInstance;

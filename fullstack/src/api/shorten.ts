@@ -1,10 +1,11 @@
 import { generateHash, pickFirst, pickAll } from '../core/core';
-import { db, cache } from '../database';
-import { tryFetchOrigin } from './unshorten';
+import { mysqlGet, mysqlGetMultiInfo, mysqlInsert } from '../database/mysql';
+import { memcachedGet, memcachedRemove } from '../database/memcached';
 import { validate } from '../validator/shorten';
 import logger from '../log/log';
+import { ErrorMsg } from '../model/ErrorMsg';
 
-async function shorten (url: string): Promise<string> {
+function shorten (url: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         validate(url)
         .then((url) => {
@@ -17,14 +18,14 @@ async function shorten (url: string): Promise<string> {
             reject(err);
         });
     });
-};
+}
 
-async function shortenUrl(url: string): Promise<string> {
+function shortenUrl(url: string): Promise<string> {
     const now: number = Date.now();
     const hash: string = generateHash(url);
     const first: string = pickFirst(hash);
     return new Promise<string>((resolve, reject) => {
-        tryFetchOrigin(first)
+        tryGetOrigin(first)
         .then((origin) => {
             if (origin) {
                 if (url == origin) {
@@ -46,19 +47,39 @@ async function shortenUrl(url: string): Promise<string> {
         .then((code) => {
             resolve(code);
         })
-        .catch((err) => {
+        .catch((err: ErrorMsg) => {
             reject(err);
         });
     });
 }
 
-async function tryInsertDb(code: string, url: string, now: number): Promise<string | undefined> {
+function tryGetOrigin(code: string): Promise<string | undefined> {
+    return new Promise<string | undefined>((resolve, reject) => {
+        memcachedGet(code)
+        .then((origin: string | undefined) => {
+            if (origin == '') {
+                return undefined;
+            } else if (origin == undefined) {
+                return mysqlGet(code);
+            }
+            return origin;
+        })
+        .then((origin: string | undefined) => {
+            resolve(origin);
+        })
+        .catch((err: ErrorMsg) => {
+            reject(err);
+        });
+    });
+}
+
+function tryInsertDb(code: string, url: string, now: number): Promise<string | undefined> {
     logger.debug(`tryInsertDb: ${code}`);
     return new Promise<string | undefined>((resolve, reject) => {
-        db.insert(code, url, now)
-        .then((code) => {
+        mysqlInsert(code, url, now)
+        .then((code: string | undefined) => {
             if (code) {
-                cache.remove(code);
+                memcachedRemove(code);
             }
             resolve(code);
         })
@@ -68,29 +89,14 @@ async function tryInsertDb(code: string, url: string, now: number): Promise<stri
     });
 }
 
-async function tryUpdateDb(code: string, url: string, now: number, lastUpdateTime: number): Promise<string | undefined> {
-    return new Promise<string | undefined>((resolve, reject) => {
-        db.update(code, url, now, lastUpdateTime)
-        .then((code) => {
-            if (code) {
-                cache.remove(code);
-            }
-            resolve(code);
-        })
-        .catch((err) => {
-            reject(err);
-        });
-    });
-}
-
-async function tryPickAnother(hash: string, url: string, now: number): Promise<string> {
+function tryPickAnother(hash: string, url: string, now: number): Promise<string> {
     const all: string[] = pickAll(hash);
     let infos: any[] = [];
-    return new Promise<string>(async (resolve, reject) => {
-        db.getMultiInfo(all)
+    return new Promise<string>((resolve, reject) => {
+        mysqlGetMultiInfo(all)
         .then((results) => {
                 infos = results;
-                for (let info of infos) {
+                for (const info of infos) {
                     if (url == info['origin_url']) {
                         return info['short_url'];
                     }
@@ -101,7 +107,7 @@ async function tryPickAnother(hash: string, url: string, now: number): Promise<s
             if (code) {
                 resolve(code);
             } else {
-                reject({'status': 500, 'msg': `Failed to shorten url: ${url}.`});
+                reject(ErrorMsg.of(500, `Failed to shorten url: ${url}.`));
             }
         })
         .catch((err) => {
@@ -110,25 +116,14 @@ async function tryPickAnother(hash: string, url: string, now: number): Promise<s
     });
 }
 
-async function doPickAnother(url: string, now: number, all: string[], infos: any[]): Promise<string | undefined> {
-    let codes: string[] = infos.map((info) => info['short_url']);
+function doPickAnother(url: string, now: number, all: string[], infos: any[]): Promise<string | undefined> {
+    const codes: string[] = infos.map((info) => info['short_url']);
     const set: Set<string> = new Set(codes);
-    const left: any[] = all.filter((code) => !set.has(code)).map((code) => { 
-        return { 'short_url': code, 'update_time': -1 };
-     });
-     infos.sort((a, b) => {
-        return a['update_time'] - b['update_time'];
-    });
-    let candidates = left.concat(infos);
+    const unused: any[] = all.filter((code) => !set.has(code));
     return new Promise<string | undefined>(async (resolve, reject) => {
         try {
-            for (const candidate of candidates) {
-                let result: string|undefined;
-                if (candidate['update_time'] == -1) {
-                    result = await tryInsertDb(candidate['short_url'], url, now);
-                } else {
-                    result = await tryUpdateDb(candidate['short_url'], url, now, candidate['update_time']);
-                }
+            for (const code of unused) {
+                const result = await tryInsertDb(code, url, now);
                 if (result) {
                     resolve(result);
                     return;
@@ -141,5 +136,5 @@ async function doPickAnother(url: string, now: number, all: string[], infos: any
     });
 }
 
-export { shortenUrl, tryInsertDb, tryUpdateDb, tryPickAnother, doPickAnother };
+export { shortenUrl, tryInsertDb, tryPickAnother, doPickAnother };
 export default shorten;
